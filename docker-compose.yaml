@@ -1,0 +1,16 @@
+version: '3'
+services:
+  dify-sso:  
+    image: lework/dify-sso
+    container_name: dify-sso
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    networks:
+      - docker_default
+
+networks:
+  docker_default:       
+    external: true
