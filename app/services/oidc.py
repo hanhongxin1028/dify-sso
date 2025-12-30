@@ -9,7 +9,7 @@ from app.configs import config
 from app.extensions.ext_database import db
 from app.extensions.ext_redis import redis_client
 from app.libs.helper import naive_utc_now
-from app.models.account import Account, AccountStatus, TenantAccountJoin, TenantAccountRole
+from app.models.account import Account, AccountStatus, TenantAccountJoin, TenantAccountRole, Tenant
 from app.models.model import Site
 from app.services.passport import PassportService
 from app.services.token import TokenService
@@ -136,26 +136,35 @@ class OIDCService:
             # 如果系统用户不存在，则创建系统用户
             if not account:
                 logger.info("创建用户: %s, 角色: %s", user_email, user_role)
+                # 1. 创建新账号
                 account = Account.create(
                     email=user_email,
                     name=user_name,
                     avatar="",
                 )
-                TenantAccountJoin.create(self.tenant_id, account.id, user_role)
+
+                # 2. 创建新工作空间（tenant）
+                tenant = Tenant.create(name=f"{user_name}的工作空间")
+                TenantAccountJoin.create(tenant.id, account.id, user_role)
+
+                # 3. 设置当前空间
+                account.current_tenant_id = tenant.id
             else:
-                # 如果用户已存在，检查是否属于当前租户
-                tenant_account_join = TenantAccountJoin.get_by_account(
-                    self.tenant_id, account.id
-                )
-                if not tenant_account_join:
-                    logger.info("用户 %s 不属于当前租户，创建关联: 角色 %s", user_email, user_role)
-                    tenant_account_join = TenantAccountJoin.create(self.tenant_id, account.id, user_role)
+                # 如果用户已存在，检查是否有工作空间
+                existing_account_join = TenantAccountJoin.get_first_by_account_id(account.id)
+
+                if not existing_account_join:
+                    # 如果真是孤儿账号（比如之前手动删了库里的关联），给他补一个家
+                    logger.info("老用户 %s 无关联空间，正在补建...", user_email)
+                    tenant = Tenant.create(name=f"{user_name}的工作空间")
+                    TenantAccountJoin.create(tenant.id, account.id, user_role)
+                    account.current_tenant_id = tenant.id
                 else:
                     # 更新角色（如果有变化）
-                    if tenant_account_join.role != user_role:
-                        logger.info("用户角色更新: %s (%s -> %s)", user_email, tenant_account_join.role, user_role)
-                        tenant_account_join.role = user_role
-                        db.session.add(tenant_account_join)
+                    if existing_account_join.role != user_role:
+                        logger.info("用户角色更新: %s (%s -> %s)", user_email, existing_account_join.role, user_role)
+                        existing_account_join.role = user_role
+                        db.session.add(existing_account_join)
 
             # 更新用户登录信息
             account.last_login_at = naive_utc_now()

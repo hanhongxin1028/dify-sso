@@ -1,9 +1,13 @@
 version: '3'
 services:
   dify-sso:  
-    image: lework/dify-sso
+    # image: lework/dify-sso
+    build: .
     container_name: dify-sso
     restart: always
+    volumes:
+      - ./app:/app/app
+      - ~/administrator_project/dify/docker/volumes/app/storage:/app/api/storage
     env_file:
       - .env
     ports:

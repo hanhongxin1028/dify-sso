@@ -1,11 +1,16 @@
 import enum
 import json
+import os
 from datetime import UTC, datetime
 from typing import Optional
 
 from flask_login import UserMixin
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend
 
 from .base import Base
 from .engine import db
@@ -242,6 +247,53 @@ class Tenant(db.Model):
     def custom_config_dict(self, value: dict):
         self.custom_config = json.dumps(value)
 
+    @classmethod
+    def create(cls, name: str) -> "Tenant":
+        # 1. 生成密钥对
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+
+        # 2. 提取公钥 (用于存入数据库)
+        public_key_str = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode('utf-8')
+
+        # 3. 创建租户对象并添加到 Session
+        tenant = cls(
+            name=name,
+            encrypt_public_key=public_key_str,
+            plan='sandbox',
+            status='normal'
+        )
+        db.session.add(tenant)
+        db.session.flush()
+
+        # 4. 保存私钥到文件系统
+        base_storage_path = '/app/api/storage/privkeys'
+        tenant_folder = os.path.join(base_storage_path, str(tenant.id))
+
+        if not os.path.exists(tenant_folder):
+            os.makedirs(tenant_folder, exist_ok=True)
+
+        # 序列化私钥
+        private_key_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
+        file_path = os.path.join(tenant_folder, 'private.pem')
+        
+        with open(file_path, 'wb') as f:
+            f.write(private_key_bytes)
+
+        db.session.commit() 
+        return tenant
+
 
 class TenantAccountJoin(db.Model):
     __tablename__ = "tenant_account_joins"
@@ -276,6 +328,14 @@ class TenantAccountJoin(db.Model):
     def get_by_account(cls, tenant_id: str, account_id: str):
         """通过账号查找用户"""
         return db.session.query(cls).filter(cls.tenant_id == tenant_id, cls.account_id == account_id).first()
+    
+    @classmethod
+    def get_first_by_account_id(cls, account_id: str):
+        """
+        查找该用户关联的任意一个租户记录。
+        用于判断用户是否已经是 '老用户' (已有空间)。
+        """
+        return db.session.query(cls).filter(cls.account_id == account_id).first()
 
 
 class AccountIntegrate(Base):
