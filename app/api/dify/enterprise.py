@@ -65,9 +65,9 @@ SYSTEM_FEATURES = {
     "enable_marketplace": True,
     "max_plugin_package_size": 52428800,
     "enable_email_code_login": False,
-    "enable_email_password_login": False,
+    "enable_email_password_login": True,
     "enable_social_oauth_login": False,
-    "is_allow_register": False,
+    "is_allow_register": True,
     "is_allow_create_workspace": False,
     "is_email_setup": True,
     "license": {
@@ -80,9 +80,9 @@ SYSTEM_FEATURES = {
         }
     },
     "branding": {
-        "enabled": False,
-        "application_title": "",
-        "login_page_logo": "",
+        "enabled": True,
+        "application_title": "jscn",
+        "login_page_logo": "https://www.jscnnet.com/gyjscn/gsgk/201911/W020191127469922614030.png",
         "workspace_logo": "",
         "favicon": ""
     },

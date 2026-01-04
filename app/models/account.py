@@ -113,7 +113,7 @@ class Account(UserMixin, Base):
     @property
     def current_tenant(self):
         # FIXME: fix the type error later, because the type is important maybe cause some bugs
-        return self._current_tenant  # type: ignore
+        return getattr(self, "_current_tenant", None)  # type: ignore
 
     @current_tenant.setter
     def current_tenant(self, value: "Tenant"):
@@ -128,7 +128,8 @@ class Account(UserMixin, Base):
 
     @property
     def current_tenant_id(self) -> str | None:
-        return self._current_tenant.id if self._current_tenant else None
+        tenant = getattr(self, "_current_tenant", None)
+        return tenant.id if tenant else None
 
     @current_tenant_id.setter
     def current_tenant_id(self, value: str):
