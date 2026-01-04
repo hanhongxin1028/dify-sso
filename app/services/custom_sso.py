@@ -12,7 +12,7 @@ class CustomSSOService:
         根据用户名（工号）查找或创建 Dify 账户
         """
         # 构造 Dify 账号所需的 Email
-        user_email = f"{username}@jscn.oa"
+        user_email = username
         user_name = nickname if nickname else username
         
         # 默认角色
